@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSHS Term Preference Poll • Live</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Poppins:wght@600&amp;display=swap');
+        
+        body { font-family: 'Inter', system_ui, sans-serif; }
+        .font-display { font-family: 'Poppins', 'Inter', system_ui, sans-serif; font-weight: 600; }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+        }
+
+        .admin-modal {
+            animation: modalEnter 0.2s cubic-bezier(0.32, 0.72, 0, 1);
+        }
+
+        .live-dot {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        .stat-value {
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .chart-container {
+            position: relative;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200">
+        <div class="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-x-3">
+                <div class="w-9 h-9 bg-indigo-600 rounded-2xl flex items-center justify-center">
+                    <i class="fa-solid fa-graduation-cap text-white"></i>
+                </div>
+                <div>
+                    <span class="font-display text-2xl font-semibold tracking-tighter">MSHS</span>
+                </div>
+            </div>
+            <div class="text-sm text-slate-500">Term Preference Poll 2026</div>
+        </div>
+    </header>
+
+    <main class="max-w-2xl mx-auto px-5 pt-12 pb-20">
+        <!-- Hero -->
+        <div class="text-center mb-10">
+            <h1 class="text-5xl font-semibold tracking-tighter text-slate-900">Term Preference Poll</h1>
+            <p class="mt-3 text-xl text-slate-600">Which term structure do you prefer?</p>
+            <div class="mt-3 text-xs text-amber-600 font-medium">This is an anonymous poll only — it does not determine official policy.</div>
+        </div>
+
+        <!-- Voting Section -->
+        <div id="voting-section" class="max-w-md mx-auto">
+            <div class="bg-white rounded-3xl shadow-xl p-8 border border-slate-200">
+                <div class="text-center mb-8">
+                    <h2 class="text-2xl font-semibold tracking-tight">Cast Your Vote</h2>
+                    <p class="text-slate-500 mt-1 text-sm">Select your preferred option below</p>
+                </div>
+
+                <div class="grid grid-cols-1 gap-4">
+                    <!-- 2nd Term -->
+                    <button onclick="submitVote('2nd')"
+                            class="group flex items-center justify-between px-8 py-6 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-2xl transition-all text-left shadow-lg">
+                        <div class="flex items-center gap-x-4">
+                            <span class="text-5xl">📘</span>
+                            <div>
+                                <div class="font-bold text-2xl tracking-tight">2nd Term</div>
+                                <div class="text-indigo-200 text-sm">Preferred Option</div>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-arrow-right text-2xl opacity-70 group-hover:translate-x-1 transition-transform"></i>
+                    </button>
+
+                    <!-- 3rd Term -->
+                    <button onclick="submitVote('3rd')"
+                            class="group flex items-center justify-between px-8 py-6 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white rounded-2xl transition-all text-left shadow-lg">
+                        <div class="flex items-center gap-x-4">
+                            <span class="text-5xl">📙</span>
+                            <div>
+                                <div class="font-bold text-2xl tracking-tight">3rd Term</div>
+                                <div class="text-amber-100 text-sm">Preferred Option</div>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-arrow-right text-2xl opacity-70 group-hover:translate-x-1 transition-transform"></i>
+                    </button>
+                </div>
+
+                <div class="mt-8 text-center text-xs text-slate-400">
+                    One vote per person • Results are confidential
+                </div>
+            </div>
+        </div>
+
+        <!-- Thank You State (shown after voting) -->
+        <div id="thank-you-state" class="hidden max-w-md mx-auto mt-6">
+            <div class="bg-emerald-50 border border-emerald-200 rounded-3xl p-8 text-center">
+                <div class="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fa-solid fa-check text-emerald-600 text-4xl"></i>
+                </div>
+                <h3 class="text-2xl font-semibold text-emerald-800">Thank you!</h3>
+                <p id="thank-you-message" class="mt-2 text-emerald-700"></p>
+                <p class="mt-3 text-xs text-emerald-600 font-medium">Your vote has been recorded and cannot be changed.</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Admin Access Hint -->
+    <div class="text-center text-[10px] text-slate-400 mt-12">
+        Press <span class="font-mono font-semibold">Ctrl + Shift + A</span> for administrators
+    </div>
+
+    <!-- ADMIN DASHBOARD MODAL -->
+    <div id="admin-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4">
+        <div onclick="event.target.id === 'admin-modal' && closeAdminModal()" class="absolute inset-0"></div>
+        
+        <!-- Glassmorphism Modal -->
+        <div class="relative w-full max-w-[1100px] admin-modal">
+            <div class="glass rounded-3xl shadow-2xl border border-white/40 overflow-hidden">
+                
+                <!-- Header -->
+                <div class="px-8 py-5 bg-white/80 border-b flex items-center justify-between">
+                    <div class="flex items-center gap-x-3">
+                        <div class="flex items-center gap-x-2">
+                            <i class="fa-solid fa-chart-line text-xl text-indigo-600"></i>
+                            <span class="font-semibold text-xl tracking-tight">Live Analytics Dashboard</span>
+                        </div>
+                        <div class="flex items-center gap-x-1.5 px-3 py-1 bg-emerald-100 text-emerald-700 text-xs rounded-full font-medium">
+                            <div class="w-2 h-2 bg-emerald-500 rounded-full live-dot"></div>
+                            <span>LIVE</span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center gap-x-2 text-sm">
+                        <button onclick="refreshDashboard()" class="px-4 py-2 hover:bg-white/70 rounded-2xl flex items-center gap-x-2 text-slate-600">
+                            <i class="fa-solid fa-sync-alt"></i>
+                            <span class="hidden md:inline">Refresh</span>
+                        </button>
+                        <button onclick="exportToCSV()" class="px-4 py-2 hover:bg-white/70 rounded-2xl flex items-center gap-x-2 text-slate-600">
+                            <i class="fa-solid fa-file-csv"></i>
+                            <span class="hidden md:inline">CSV</span>
+                        </button>
+                        <button onclick="exportToExcel()" class="px-4 py-2 hover:bg-white/70 rounded-2xl flex items-center gap-x-2 text-slate-600">
+                            <i class="fa-solid fa-file-excel"></i>
+                            <span class="hidden md:inline">Excel</span>
+                        </button>
+                        <button onclick="resetPoll()" class="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-2xl flex items-center gap-x-2">
+                            <i class="fa-solid fa-trash"></i>
+                            <span class="hidden md:inline">Reset</span>
+                        </button>
+                        <button onclick="closeAdminModal()" class="w-9 h-9 flex items-center justify-center hover:bg-white/70 rounded-2xl text-xl">&times;</button>
+                    </div>
+                </div>
+
+                <div class="p-8 bg-white/60">
+                    <!-- Live Stats -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                        <div class="bg-white rounded-2xl p-5 border">
+                            <div class="text-xs text-slate-500">TOTAL VOTES</div>
+                            <div id="stat-total" class="text-4xl font-semibold mt-1 stat-value">0</div>
+                        </div>
+                        <div class="bg-white rounded-2xl p-5 border">
+                            <div class="text-xs text-indigo-600">2ND TERM</div>
+                            <div id="stat-2nd" class="text-4xl font-semibold mt-1 text-indigo-700 stat-value">0</div>
+                            <div id="pct-2nd" class="text-sm text-indigo-500">0%</div>
+                        </div>
+                        <div class="bg-white rounded-2xl p-5 border">
+                            <div class="text-xs text-amber-600">3RD TERM</div>
+                            <div id="stat-3rd" class="text-4xl font-semibold mt-1 text-amber-700 stat-value">0</div>
+                            <div id="pct-3rd" class="text-sm text-amber-500">0%</div>
+                        </div>
+                        <div class="bg-white rounded-2xl p-5 border">
+                            <div class="text-xs text-slate-500">LAST UPDATED</div>
+                            <div id="last-updated" class="text-sm mt-1 font-mono text-slate-600">—</div>
+                            <div class="text-[10px] text-emerald-600 mt-1">🟢 Connected</div>
+                        </div>
+                    </div>
+
+                    <!-- Charts -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Pie Chart -->
+                        <div class="bg-white rounded-2xl p-6 border">
+                            <div class="font-semibold mb-4 text-sm">Vote Distribution (Pie)</div>
+                            <div class="h-[240px]">
+                                <canvas id="pie-chart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Doughnut -->
+                        <div class="bg-white rounded-2xl p-6 border">
+                            <div class="font-semibold mb-4 text-sm">Vote Distribution (Doughnut)</div>
+                            <div class="h-[240px]">
+                                <canvas id="doughnut-chart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Horizontal Bar -->
+                        <div class="bg-white rounded-2xl p-6 border">
+                            <div class="font-semibold mb-4 text-sm">Vote Comparison</div>
+                            <div class="h-[240px]">
+                                <canvas id="bar-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== CONFIGURATION ====================
+        const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
+        const SUPABASE_ANON_KEY = 'YOUR-ANON-KEY-HERE';
+
+        let supabaseClient = null;
+        let realtimeChannel = null;
+        let pieChart = null;
+        let doughnutChart = null;
+        let barChart = null;
+
+        // Initialize Supabase
+        function initSupabase() {
+            if (SUPABASE_URL.includes('YOUR-PROJECT')) {
+                console.log('%c[MSHS] Please add your Supabase credentials to use real-time features.', 'color:#d97706');
+                return false;
+            }
+            try {
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                return true;
+            } catch (e) {
+                console.error('Supabase initialization failed', e);
+                return false;
+            }
+        }
+
+        // Load current votes from Supabase
+        async function loadVotes() {
+            if (!supabaseClient) return [];
+            const { data, error } = await supabaseClient
+                .from('votes')
+                .select('*')
+                .order('created_at', { ascending: true });
+            return data || [];
+        }
+
+        // Submit a vote
+        async function submitVote(choice) {
+            if (!supabaseClient) {
+                alert("This demo requires Supabase configuration.");
+                return;
+            }
+
+            // Prevent multiple votes from same browser
+            if (localStorage.getItem('mshs_voted')) {
+                alert("You have already voted.");
+                return;
+            }
+
+            try {
+                const { error } = await supabaseClient
+                    .from('votes')
+                    .insert([{ choice: choice }]);
+
+                if (error) throw error;
+
+                localStorage.setItem('mshs_voted', 'true');
+                localStorage.setItem('mshs_choice', choice);
+
+                // Show thank you state
+                showThankYouState(choice);
+
+            } catch (err) {
+                console.error(err);
+                alert("Failed to submit vote. Please try again.");
+            }
+        }
+
+        function showThankYouState(choice) {
+            document.getElementById('voting-section').classList.add('hidden');
+            const thankYou = document.getElementById('thank-you-state');
+            thankYou.classList.remove('hidden');
+            
+            const choiceText = choice === '2nd' ? '2nd Term' : '3rd Term';
+            document.getElementById('thank-you-message').innerHTML = 
+                `Your vote for <strong>${choiceText}</strong> has been recorded.`;
+        }
+
+        // ==================== ADMIN DASHBOARD ====================
+        function openAdminModal() {
+            const modal = document.getElementById('admin-modal');
+            modal.style.display = 'flex';
+            showAuthGate();
+        }
+
+        function closeAdminModal() {
+            const modal = document.getElementById('admin-modal');
+            modal.style.display = 'none';
+            destroyCharts();
+        }
+
+        function showAuthGate() {
+            // Simple password gate (in production use Supabase Auth)
+            const password = prompt("Enter administrator password:");
+            if (password === "mshs2026") {
+                showDashboard();
+            } else if (password !== null) {
+                alert("Access denied.");
+                closeAdminModal();
+            } else {
+                closeAdminModal();
+            }
+        }
+
+        async function showDashboard() {
+            if (!supabaseClient) {
+                alert("Supabase is not configured.");
+                closeAdminModal();
+                return;
+            }
+
+            // Setup realtime listener
+            setupRealtimeListener();
+
+            // Load and display data
+            await refreshDashboard();
+        }
+
+        function setupRealtimeListener() {
+            if (realtimeChannel) return;
+
+            realtimeChannel = supabaseClient
+                .channel('votes-live')
+                .on('postgres_changes', 
+                    { event: '*', schema: 'public', table: 'votes' }, 
+                    async () => {
+                        await refreshDashboard(true); // animate = true
+                    }
+                )
+                .subscribe();
+        }
+
+        async function refreshDashboard(animate = false) {
+            if (!supabaseClient) return;
+
+            const votes = await loadVotes();
+            const stats = calculateStats(votes);
+
+            // Update numbers
+            updateStatNumbers(stats, animate);
+
+            // Update charts
+            updateCharts(stats);
+
+            // Update timestamp
+            document.getElementById('last-updated').textContent = 
+                new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function calculateStats(votes) {
+            const total = votes.length;
+            const count2nd = votes.filter(v => v.choice === '2nd').length;
+            const count3rd = total - count2nd;
+            const pct2nd = total > 0 ? Math.round((count2nd / total) * 100) : 0;
+            const pct3rd = total > 0 ? 100 - pct2nd : 0;
+
+            return { total, count2nd, count3rd, pct2nd, pct3rd };
+        }
+
+        function updateStatNumbers(stats, animate) {
+            const elements = {
+                total: document.getElementById('stat-total'),
+                '2nd': document.getElementById('stat-2nd'),
+                '3rd': document.getElementById('stat-3rd'),
+                pct2: document.getElementById('pct-2nd'),
+                pct3: document.getElementById('pct-3rd')
+            };
+
+            if (animate) {
+                animateValue(elements.total, parseInt(elements.total.textContent) || 0, stats.total);
+                animateValue(elements['2nd'], parseInt(elements['2nd'].textContent) || 0, stats.count2nd);
+                animateValue(elements['3rd'], parseInt(elements['3rd'].textContent) || 0, stats.count3rd);
+            } else {
+                elements.total.textContent = stats.total;
+                elements['2nd'].textContent = stats.count2nd;
+                elements['3rd'].textContent = stats.count3rd;
+            }
+
+            elements.pct2.textContent = stats.pct2nd + '%';
+            elements.pct3.textContent = stats.pct3rd + '%';
+        }
+
+        function animateValue(element, start, end) {
+            const duration = 600;
+            const startTime = performance.now();
+            
+            function update(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const value = Math.floor(start + (end - start) * progress);
+                element.textContent = value;
+                
+                if (progress < 1) requestAnimationFrame(update);
+            }
+            requestAnimationFrame(update);
+        }
+
+        function updateCharts(stats) {
+            destroyCharts();
+
+            const commonData = {
+                labels: ['2nd Term', '3rd Term'],
+                datasets: [{
+                    data: [stats.count2nd, stats.count3rd],
+                    backgroundColor: ['#1e40af', '#d97706'],
+                    borderColor: '#fff',
+                    borderWidth: 3
+                }]
+            };
+
+            // Pie Chart
+            pieChart = new Chart(document.getElementById('pie-chart'), {
+                type: 'pie',
+                data: commonData,
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            // Doughnut Chart
+            doughnutChart = new Chart(document.getElementById('doughnut-chart'), {
+                type: 'doughnut',
+                data: commonData,
+                options: { responsive: true, maintainAspectRatio: false, cutout: '65%' }
+            });
+
+            // Horizontal Bar Chart
+            barChart = new Chart(document.getElementById('bar-chart'), {
+                type: 'bar',
+                data: {
+                    labels: ['2nd Term', '3rd Term'],
+                    datasets: [{
+                        label: 'Votes',
+                        data: [stats.count2nd, stats.count3rd],
+                        backgroundColor: ['#1e40af', '#d97706'],
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { x: { beginAtZero: true } }
+                }
+            });
+        }
+
+        function destroyCharts() {
+            if (pieChart) pieChart.destroy();
+            if (doughnutChart) doughnutChart.destroy();
+            if (barChart) barChart.destroy();
+            pieChart = doughnutChart = barChart = null;
+        }
+
+        // ==================== EXPORTS ====================
+        async function exportToCSV() {
+            const votes = await loadVotes();
+            if (!votes.length) return alert("No votes to export.");
+
+            let csv = "ID,Choice,Timestamp\n";
+            votes.forEach(v => {
+                csv += `${v.id},${v.choice},${v.created_at}\n`;
+            });
+
+            downloadFile(csv, `mshs_poll_${new Date().toISOString().slice(0,10)}.csv`, 'text/csv');
+        }
+
+        async function exportToExcel() {
+            const votes = await loadVotes();
+            if (!votes.length) return alert("No votes to export.");
+
+            const ws = XLSX.utils.json_to_sheet(votes);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Votes");
+            XLSX.writeFile(wb, `mshs_poll_${new Date().toISOString().slice(0,10)}.xlsx`);
+        }
+
+        function downloadFile(content, filename, type) {
+            const blob = new Blob([content], { type });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        async function resetPoll() {
+            if (!confirm("Are you sure you want to delete ALL votes? This cannot be undone.")) return;
+            
+            if (!supabaseClient) return;
+            
+            await supabaseClient.from('votes').delete().neq('id', '');
+            await refreshDashboard();
+            alert("Poll has been reset.");
+        }
+
+        // ==================== KEYBOARD SHORTCUT ====================
+        function setupKeyboardShortcut() {
+            document.addEventListener('keydown', function(e) {
+                if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'a') {
+                    e.preventDefault();
+                    openAdminModal();
+                }
+            });
+        }
+
+        // ==================== INITIALIZATION ====================
+        function initialize() {
+            const supabaseReady = initSupabase();
+
+            // Check if user already voted
+            if (localStorage.getItem('mshs_voted')) {
+                const choice = localStorage.getItem('mshs_choice');
+                showThankYouState(choice);
+            }
+
+            setupKeyboardShortcut();
+
+            // Show helpful message if Supabase is not configured
+            if (!supabaseReady) {
+                console.log('%c[MSHS] Add your Supabase URL and key to enable real-time features.', 'color:#64748b');
+            }
+
+            console.log('%c[MSHS Poll] Ready. Press Ctrl + Shift + A for admin dashboard.', 'color:#64748b');
+        }
+
+        window.onload = initialize;
+    </script>
+</body>
+</html>
